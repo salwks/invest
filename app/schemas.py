@@ -4,7 +4,7 @@ All models use Pydantic for validation and serialization.
 """
 
 from datetime import datetime
-from typing import Literal, Optional, Any
+from typing import Literal, Optional, Any, Dict
 from pydantic import BaseModel, Field, validator, ConfigDict
 from enum import Enum
 
@@ -94,7 +94,7 @@ class PreSignal(BaseModel):
     """
     action: ActionType = Field(..., description="Recommended action")
     window_hint: str = Field(..., description="Time window hint (e.g., '[1,5]m')")
-    metrics: dict[str, Any] = Field(..., description="Relevant metrics used in decision")
+    metrics: Dict[str, Any] = Field(default_factory=dict, description="Relevant metrics used in decision")
     reasons: list[str] = Field(..., description="Human-readable reasons for decision")
     event_id: str = Field(..., description="Related event ID")
     ticker: str = Field(..., description="Ticker symbol")
