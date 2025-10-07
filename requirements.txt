@@ -1,7 +1,7 @@
 # Core dependencies
 python-dotenv==1.0.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic>=2.10.0  # Python 3.13 support
+pydantic-settings>=2.1.0
 
 # Async runtime
 asyncio==3.4.3

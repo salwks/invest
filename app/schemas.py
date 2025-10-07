@@ -3,10 +3,15 @@ Data schemas for the automated trading system.
 All models use Pydantic for validation and serialization.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional, Any, Dict
 from pydantic import BaseModel, Field, validator, ConfigDict
 from enum import Enum
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 class SessionType(str, Enum):
@@ -98,7 +103,7 @@ class PreSignal(BaseModel):
     reasons: list[str] = Field(..., description="Human-readable reasons for decision")
     event_id: str = Field(..., description="Related event ID")
     ticker: str = Field(..., description="Ticker symbol")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Signal generation time (UTC)")
+    timestamp: datetime = Field(default_factory=utc_now, description="Signal generation time (UTC)")
 
     model_config = ConfigDict(use_enum_values=True, arbitrary_types_allowed=True)
 
@@ -116,7 +121,7 @@ class ApprovedSignal(BaseModel):
     ticker: str = Field(..., description="Ticker symbol")
     entry_price_target: Optional[float] = Field(default=None, description="Target entry price")
     shares: Optional[int] = Field(default=None, description="Number of shares to trade")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Approval timestamp (UTC)")
+    timestamp: datetime = Field(default_factory=utc_now, description="Approval timestamp (UTC)")
 
 
 class OrderRecord(BaseModel):
@@ -196,4 +201,4 @@ class PortfolioState(BaseModel):
     daily_pnl_pct: float = Field(..., description="Today's P&L as % of starting equity")
     sector_exposure: dict[str, float] = Field(default_factory=dict, description="Exposure by sector")
     open_positions: list[Position] = Field(default_factory=list, description="Currently open positions")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="State timestamp (UTC)")
+    timestamp: datetime = Field(default_factory=utc_now, description="State timestamp (UTC)")

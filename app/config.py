@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Literal
 import yaml
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 
@@ -54,10 +54,11 @@ class Settings(BaseSettings):
     # Risk management
     initial_equity: float = Field(default=100000.0, alias="INITIAL_EQUITY")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
 
     @property
     def tickers(self) -> list[str]:
