@@ -94,13 +94,13 @@ class PreSignal(BaseModel):
     """
     action: ActionType = Field(..., description="Recommended action")
     window_hint: str = Field(..., description="Time window hint (e.g., '[1,5]m')")
-    metrics: Dict[str, Any] = Field(default_factory=dict, description="Relevant metrics used in decision")
+    metrics: dict = Field(default_factory=dict, description="Relevant metrics used in decision")
     reasons: list[str] = Field(..., description="Human-readable reasons for decision")
     event_id: str = Field(..., description="Related event ID")
     ticker: str = Field(..., description="Ticker symbol")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Signal generation time (UTC)")
 
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, arbitrary_types_allowed=True)
 
 
 class ApprovedSignal(BaseModel):
