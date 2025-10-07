@@ -54,3 +54,6 @@ data/
 
 # Docker
 docker-compose.override.yml
+
+# Virtual environment
+venv/

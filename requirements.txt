@@ -18,9 +18,9 @@ beautifulsoup4==4.12.2
 lxml==4.9.3
 
 # Data processing
-pandas==2.1.4
-pyarrow==14.0.1
-numpy==1.26.2
+pandas>=2.2.0
+pyarrow>=14.0.1
+numpy>=1.26.2
 
 # Market data calculations
 ta==0.11.0

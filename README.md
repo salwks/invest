@@ -1,5 +1,10 @@
 # Automated News-Based Trading System
 
+[![Tests](https://github.com/salwks/invest/workflows/Tests/badge.svg)](https://github.com/salwks/invest/actions)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](docker/Dockerfile)
+
 A sophisticated automated trading system that monitors RSS news feeds, uses Claude AI for news interpretation, applies rule-based trading logic, and executes trades via Alpaca Paper Trading API.
 
 ## 🎯 Features
