@@ -4,8 +4,8 @@ All models use Pydantic for validation and serialization.
 """
 
 from datetime import datetime
-from typing import Literal, Optional
-from pydantic import BaseModel, Field, validator
+from typing import Literal, Optional, Any
+from pydantic import BaseModel, Field, validator, ConfigDict
 from enum import Enum
 
 
@@ -63,8 +63,7 @@ class EventCard(BaseModel):
     source: str = Field(default="", description="RSS feed source")
     url: Optional[str] = Field(default=None, description="Source URL")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class MarketState(BaseModel):
@@ -86,8 +85,7 @@ class MarketState(BaseModel):
     ask: Optional[float] = Field(default=None, description="Current ask price")
     volume: Optional[int] = Field(default=None, description="Recent volume")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class PreSignal(BaseModel):
@@ -96,14 +94,13 @@ class PreSignal(BaseModel):
     """
     action: ActionType = Field(..., description="Recommended action")
     window_hint: str = Field(..., description="Time window hint (e.g., '[1,5]m')")
-    metrics: dict[str, float] = Field(..., description="Relevant metrics used in decision")
+    metrics: dict[str, Any] = Field(..., description="Relevant metrics used in decision")
     reasons: list[str] = Field(..., description="Human-readable reasons for decision")
     event_id: str = Field(..., description="Related event ID")
     ticker: str = Field(..., description="Ticker symbol")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Signal generation time (UTC)")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ApprovedSignal(BaseModel):
@@ -142,8 +139,7 @@ class OrderRecord(BaseModel):
     filled_qty: Optional[int] = Field(default=None, description="Filled quantity")
     error_message: Optional[str] = Field(default=None, description="Error message if failed")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class Position(BaseModel):
