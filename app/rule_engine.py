@@ -91,14 +91,14 @@ class RuleEngine:
         disallowed_sessions = skip_rules.get("disallow_session", [])
         if market.session in disallowed_sessions:
             reasons.append(f"Session '{market.session}' is disallowed")
-            metrics["session"] = market.session
+            # Note: session is string, not stored in metrics
             return True
 
         # Check category blocklist
         disallowed_categories = skip_rules.get("disallow_categories", [])
         if event.category in disallowed_categories:
             reasons.append(f"Category '{event.category}' is disallowed")
-            metrics["category"] = event.category
+            # Note: category is string, not stored in metrics
             return True
 
         # Check minimum reliability
