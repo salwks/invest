@@ -1,0 +1,79 @@
+# Trading Rules Configuration
+
+entry:
+  # Sentiment and Impact thresholds
+  min_sentiment: 0.70        # Minimum sentiment score (-1 to 1)
+  min_impact: 0.70           # Minimum reliability/impact score (0 to 1)
+
+  # Price movement thresholds
+  dp5m_min_pct: 1.0          # Minimum 5-minute price change (%)
+  dp5m_max_pct: 4.0          # Maximum 5-minute price change (%)
+
+  # Volume and liquidity
+  min_vol_ratio: 3.0         # Minimum volume ratio vs average
+  max_spread_bp: 50          # Maximum bid-ask spread (basis points)
+
+  # Technical indicators
+  max_rsi3: 75               # Maximum RSI (3-period) to avoid overbought
+
+  # Category allowlist (if empty, all categories allowed)
+  allowed_categories:
+    - earnings
+    - FDA
+    - M&A
+    - guidance
+    - partnership
+    - regulatory
+
+skip:
+  # Spike protection
+  spike01_gt_pct: 5.0        # Skip if 0-1 minute spike > 5%
+
+  # Session restrictions
+  disallow_session:
+    - pre                    # Disable pre-market trading initially
+    - after                  # Disable after-hours trading initially
+
+  # Category blocklist
+  disallow_categories:
+    - rumor                  # Skip rumor-based news
+
+  # Reliability threshold
+  min_reliability: 0.60      # Skip if reliability < 60%
+
+risk:
+  # Position sizing
+  per_trade_risk_pct: 0.004  # Risk 0.4% of equity per trade
+  min_stop_bp: 150           # Minimum stop-loss distance (basis points)
+  trail_take_profit_bp: 250  # Take profit target (basis points)
+
+  # Portfolio-level limits
+  max_daily_loss_pct: 0.02   # Max 2% daily loss
+  max_sector_exposure_pct: 0.3  # Max 30% in single sector
+  max_concurrent_positions: 3   # Max 3 open positions
+
+  # Position sizing limits
+  max_position_size_pct: 0.15   # Max 15% of equity per position
+  min_position_size_usd: 100.0  # Minimum position size
+  max_position_size_usd: 15000.0  # Maximum position size
+
+execution:
+  # Order execution parameters
+  max_slippage_bp: 40        # Maximum acceptable slippage (basis points)
+  limit_offset_bp: 10        # Limit price offset from mid (basis points)
+
+  # Order timeouts
+  order_timeout_seconds: 30  # Cancel order if not filled within 30s
+
+  # Retry logic
+  max_retries: 1             # Retry failed orders once
+  retry_delay_seconds: 2     # Wait 2s between retries
+
+monitoring:
+  # Alert thresholds
+  alert_on_large_loss_pct: 0.01  # Alert if single trade loses > 1%
+  alert_on_daily_loss_pct: 0.015  # Alert if daily loss > 1.5%
+
+  # Health checks
+  max_api_failures: 3        # Max consecutive API failures before pause
+  pause_duration_minutes: 15 # Pause duration after max failures

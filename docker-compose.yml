@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  autotrader:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autotrader
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount data directory for persistence
+      - ./data:/app/data
+      # Mount configs for easy updates
+      - ./configs:/app/configs:ro
+    restart: unless-stopped
+    command: python -m app.main --mode continuous
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-time run service
+  autotrader-once:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autotrader-once
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs:ro
+    command: python -m app.main --mode once
+    profiles:
+      - manual  # Only runs when explicitly specified
+
+  # Testing service
+  autotrader-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: autotrader-test
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RUN_MODE=DRYRUN
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs:ro
+      - ./tests:/app/tests:ro
+    command: pytest tests/ -v
+    profiles:
+      - test  # Only runs when explicitly specified
