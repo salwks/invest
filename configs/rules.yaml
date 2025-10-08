@@ -29,10 +29,8 @@ skip:
   # Spike protection
   spike01_gt_pct: 5.0        # Skip if 0-1 minute spike > 5%
 
-  # Session restrictions
-  disallow_session:
-    - pre                    # Disable pre-market trading initially
-    - after                  # Disable after-hours trading initially
+  # Session restrictions (EMPTY = allow all sessions)
+  disallow_session: []       # Allow pre-market, regular, and after-hours trading
 
   # Category blocklist
   disallow_categories:

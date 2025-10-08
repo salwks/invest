@@ -151,14 +151,14 @@ class Storage:
         logger.info(f"Database initialized: {self.db_path}")
 
     def save_event(self, event: EventCard) -> None:
-        """Save event to database."""
+        """Save event to database with processed=0 (unprocessed)."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR IGNORE INTO events
                 (event_id, cluster_id, headline, category, sentiment, reliability,
-                 published_at, session, tickers, source, url, key_facts, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 published_at, session, tickers, source, url, key_facts, created_at, processed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             """, (
                 event.event_id,
                 event.cluster_id,
@@ -175,6 +175,49 @@ class Storage:
                 get_utc_now().isoformat()
             ))
             conn.commit()
+
+    def get_unprocessed_events(self, limit: int = 50) -> list[EventCard]:
+        """Get unprocessed events from database."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT event_id, cluster_id, headline, category, sentiment, reliability,
+                       published_at, session, tickers, source, url, key_facts
+                FROM events
+                WHERE processed = 0
+                ORDER BY published_at DESC
+                LIMIT ?
+            """, (limit,))
+
+            events = []
+            for row in cursor.fetchall():
+                events.append(EventCard(
+                    event_id=row[0],
+                    cluster_id=row[1],
+                    headline=row[2],
+                    category=row[3],
+                    sentiment=row[4],
+                    reliability=row[5],
+                    published_at=datetime.fromisoformat(row[6]),
+                    session=row[7],
+                    tickers=json.loads(row[8]),
+                    source=row[9],
+                    url=row[10],
+                    key_facts=json.loads(row[11])
+                ))
+            return events
+
+    def mark_event_processed(self, event_id: str) -> None:
+        """Mark event as processed."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE events
+                SET processed = 1
+                WHERE event_id = ?
+            """, (event_id,))
+            conn.commit()
+            logger.debug(f"Marked event {event_id[:8]} as processed")
 
     def save_signal(self, pre_signal: PreSignal, approved: ApprovedSignal) -> str:
         """Save signal to database and return signal_id."""

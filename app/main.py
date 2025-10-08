@@ -97,11 +97,18 @@ class AutoTrader:
             logger.info(f"Interpreted {len(events)} new events")
             run_record.events_fetched = len(events)
 
+            # Step 2.5: Retrieve unprocessed events from DB
+            unprocessed_events = self.storage.get_unprocessed_events()
+            logger.info(f"Found {len(unprocessed_events)} unprocessed events from previous runs")
+
+            # Combine new and unprocessed events
+            all_events = events + unprocessed_events
+
             # Step 3: Process each event
             signals_generated = 0
             orders_placed = 0
 
-            for event in events:
+            for event in all_events:
                 try:
                     await self._process_event(event)
                     signals_generated += 1
@@ -155,6 +162,8 @@ class AutoTrader:
         """
         logger.info(f"Processing event: {event.headline[:60]}...")
 
+        processed_any = False  # Track if any ticker was successfully processed
+
         # For each ticker mentioned in the event
         for ticker in event.tickers:
             try:
@@ -163,7 +172,7 @@ class AutoTrader:
                 market_state = await self.market_scanner.get_market_state(ticker)
 
                 if not market_state:
-                    logger.warning(f"No market data for {ticker}, skipping")
+                    logger.warning(f"No market data for {ticker}, will retry in next cycle")
                     continue
 
                 # Step 3b: Evaluate with rule engine
@@ -202,9 +211,16 @@ class AutoTrader:
                            f"action={pre_signal.action}, "
                            f"approved={approved_signal.approved}")
 
+                processed_any = True  # Mark that at least one ticker was processed
+
             except Exception as e:
                 logger.error(f"Error processing {ticker} for event {event.event_id}: {e}")
                 raise
+
+        # Mark event as processed if at least one ticker was successfully processed
+        if processed_any:
+            self.storage.mark_event_processed(event.event_id)
+            logger.debug(f"Event {event.event_id[:8]} marked as processed")
 
     def _get_since_time(self) -> datetime:
         """
