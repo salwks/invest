@@ -7,7 +7,7 @@ import json
 from typing import Optional
 import httpx
 
-from app.schemas import EventCard, PreSignal, ApprovedSignal, OrderRecord
+from app.schemas import EventCard, PreSignal, ApprovedSignal, OrderRecord, Position
 from app.config import get_settings
 from app.utils import setup_logger, format_money, format_percentage, truncate_text
 
@@ -52,6 +52,87 @@ class Notifier:
             message = self._build_rejected_message(event, pre_signal, approved)
 
         # Send to Slack
+        await self._send_slack(message)
+
+    async def notify_exit(
+        self,
+        position: Position,
+        exit_price: float,
+        quantity: int,
+        reason: str,
+        partial: bool = False
+    ) -> None:
+        """
+        Send notification about position exit.
+
+        Args:
+            position: Position being closed
+            exit_price: Exit price
+            quantity: Quantity sold
+            reason: Exit reason (HARD_STOP, LVL1_PROFIT, TRAILING_STOP, TIME_LIMIT)
+            partial: Whether this is a partial exit
+        """
+        if not self.enabled:
+            logger.debug("Slack notifications disabled")
+            return
+
+        # Calculate P&L
+        pnl_per_share = exit_price - position.entry_price
+        total_pnl = pnl_per_share * quantity
+        pnl_pct = (pnl_per_share / position.entry_price) * 100
+
+        # Determine emoji based on reason and P&L
+        if reason == "HARD_STOP":
+            emoji = ":red_circle:"
+            reason_text = "STOP LOSS"
+        elif reason == "LVL1_PROFIT":
+            emoji = ":large_green_circle:"
+            reason_text = "PROFIT TAKING (Partial)"
+        elif reason == "TRAILING_STOP":
+            emoji = ":green_circle:"
+            reason_text = "TRAILING STOP"
+        elif reason == "TIME_LIMIT":
+            emoji = ":clock3:"
+            reason_text = "TIME EXIT"
+        else:
+            emoji = ":white_circle:"
+            reason_text = reason
+
+        exit_type = "PARTIAL EXIT" if partial else "FULL EXIT"
+        text = f"{emoji} *{exit_type}* - {position.ticker} ({reason_text})"
+
+        # Build details
+        details = [
+            f"*{exit_type}: {position.ticker}*",
+            f"*Reason:* {reason_text}",
+            "",
+            "*Position Details:*",
+            f"• Entry Price: ${position.entry_price:.2f}",
+            f"• Exit Price: ${exit_price:.2f}",
+            f"• Quantity: {quantity} shares",
+            f"• P&L: {format_money(total_pnl)} ({format_percentage(pnl_pct / 100)})",
+            ""
+        ]
+
+        if partial:
+            remaining = position.quantity - quantity
+            details.append(f"• Remaining: {remaining} shares")
+        else:
+            details.append(f"• Position CLOSED")
+
+        message = {
+            "text": text,
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "\n".join(details)
+                    }
+                }
+            ]
+        }
+
         await self._send_slack(message)
 
     async def notify_error(self, error_type: str, details: str) -> None:

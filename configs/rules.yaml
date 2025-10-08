@@ -56,6 +56,20 @@ risk:
   min_position_size_usd: 100.0  # Minimum position size
   max_position_size_usd: 15000.0  # Maximum position size
 
+exit:
+  # Partial profit taking (1st level)
+  take_profit_lvl1_pct: 8.0      # 1차 익절 +8%
+  take_profit_lvl1_part: 0.4     # 익절 비율 40%
+
+  # Trailing stop (2nd level)
+  trailing_stop_pct: 5.0         # 고점 대비 -5% 트레일링
+
+  # Time-based exit
+  hold_minutes: 60               # 최대 보유 60분
+
+  # Hard stop loss
+  hard_stop_pct: 4.0             # 손절 -4%
+
 execution:
   # Order execution parameters
   max_slippage_bp: 40        # Maximum acceptable slippage (basis points)

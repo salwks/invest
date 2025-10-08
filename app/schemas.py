@@ -160,7 +160,8 @@ class Position(BaseModel):
     stop_loss: float = Field(..., gt=0, description="Stop-loss price")
     take_profit: float = Field(..., gt=0, description="Take-profit price")
     unrealized_pnl: Optional[float] = Field(default=None, description="Unrealized P&L")
-    current_price: Optional[float] = Field(default=None, description="Current market price")
+    current_price: Optional[float] = Field(default=None, description="Current market price (peak)")
+    partial_sold: bool = Field(default=False, description="Whether partial profit taking has occurred")
 
 
 class RunRecord(BaseModel):

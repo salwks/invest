@@ -116,6 +116,8 @@ class Storage:
                     order_id TEXT NOT NULL,
                     stop_loss REAL NOT NULL,
                     take_profit REAL NOT NULL,
+                    current_price REAL,
+                    partial_sold INTEGER DEFAULT 0,
                     realized_pnl REAL,
                     status TEXT NOT NULL DEFAULT 'open',
                     FOREIGN KEY (event_id) REFERENCES events (event_id),
@@ -284,8 +286,8 @@ class Storage:
             cursor.execute("""
                 INSERT INTO positions
                 (ticker, entry_price, quantity, entry_time, event_id, order_id,
-                 stop_loss, take_profit, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                 stop_loss, take_profit, current_price, partial_sold, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
             """, (
                 position.ticker,
                 position.entry_price,
@@ -294,7 +296,9 @@ class Storage:
                 position.event_id,
                 position.order_id,
                 position.stop_loss,
-                position.take_profit
+                position.take_profit,
+                position.current_price or position.entry_price,
+                0  # partial_sold starts as False
             ))
             conn.commit()
 
@@ -372,7 +376,7 @@ class Storage:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT ticker, entry_price, quantity, entry_time, event_id,
-                       order_id, stop_loss, take_profit
+                       order_id, stop_loss, take_profit, current_price, partial_sold
                 FROM positions
                 WHERE status = 'open'
             """)
@@ -387,10 +391,90 @@ class Storage:
                     event_id=row[4],
                     order_id=row[5],
                     stop_loss=row[6],
-                    take_profit=row[7]
+                    take_profit=row[7],
+                    current_price=row[8],
+                    partial_sold=bool(row[9])
                 ))
 
             return positions
+
+    def update_position(
+        self,
+        order_id: str,
+        current_price: Optional[float] = None,
+        quantity: Optional[int] = None,
+        partial_sold: Optional[bool] = None
+    ) -> None:
+        """
+        Update position fields (for exit logic).
+
+        Args:
+            order_id: Position's original entry order ID
+            current_price: Update peak price
+            quantity: Update remaining quantity (after partial sale)
+            partial_sold: Mark as partially sold
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Build dynamic update query
+            updates = []
+            params = []
+
+            if current_price is not None:
+                updates.append("current_price = ?")
+                params.append(current_price)
+
+            if quantity is not None:
+                updates.append("quantity = ?")
+                params.append(quantity)
+
+            if partial_sold is not None:
+                updates.append("partial_sold = ?")
+                params.append(1 if partial_sold else 0)
+
+            if updates:
+                params.append(order_id)
+                query = f"""
+                    UPDATE positions
+                    SET {', '.join(updates)}
+                    WHERE order_id = ? AND status = 'open'
+                """
+                cursor.execute(query, params)
+                conn.commit()
+
+    def close_position(
+        self,
+        order_id: str,
+        exit_price: float,
+        exit_time: datetime,
+        realized_pnl: float
+    ) -> None:
+        """
+        Close position and mark as closed.
+
+        Args:
+            order_id: Position's original entry order ID
+            exit_price: Final exit price
+            exit_time: Exit timestamp
+            realized_pnl: Realized profit/loss
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE positions
+                SET status = 'closed',
+                    exit_time = ?,
+                    exit_price = ?,
+                    realized_pnl = ?
+                WHERE order_id = ? AND status = 'open'
+            """, (
+                exit_time.isoformat(),
+                exit_price,
+                realized_pnl,
+                order_id
+            ))
+            conn.commit()
 
     def event_exists(self, cluster_id: str) -> bool:
         """Check if event with cluster_id already exists."""

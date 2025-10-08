@@ -324,6 +324,132 @@ class BrokerExecutor:
         except Exception as e:
             logger.error(f"Error monitoring order: {e}")
 
+    async def close_position(
+        self,
+        position: Position,
+        quantity: int,
+        price: float,
+        reason: str
+    ) -> Optional[OrderRecord]:
+        """
+        Close position (full or partial).
+
+        Args:
+            position: Position to close
+            quantity: Number of shares to sell
+            price: Limit price for sell order
+            reason: Reason for closing (e.g., "HARD_STOP", "TRAILING_STOP")
+
+        Returns:
+            OrderRecord if order was placed, None otherwise
+        """
+        logger.info(f"[CLOSE] {position.ticker}: {quantity} shares @ ${price:.2f} ({reason})")
+
+        # Execute based on mode
+        if self.settings.run_mode == "DRYRUN":
+            return await self._close_dryrun(position, quantity, price, reason)
+        elif self.settings.run_mode in ["SEMI_AUTO", "FULL_AUTO"]:
+            return await self._place_sell_order(position, quantity, price, reason)
+        else:
+            logger.error(f"Unknown run mode: {self.settings.run_mode}")
+            return None
+
+    async def _close_dryrun(
+        self,
+        position: Position,
+        quantity: int,
+        price: float,
+        reason: str
+    ) -> OrderRecord:
+        """Close position in DRYRUN mode."""
+        pnl = (price - position.entry_price) * quantity
+        pnl_pct = ((price - position.entry_price) / position.entry_price) * 100
+
+        logger.info(f"[DRYRUN] Would sell: {quantity} shares of {position.ticker} "
+                   f"@ ${price:.2f} | P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
+
+        order = OrderRecord(
+            order_id=f"DRYRUN_SELL_{position.order_id}_{int(get_utc_now().timestamp())}",
+            ticker=position.ticker,
+            event_id=position.event_id,
+            signal_id=f"exit_{reason}",
+            side="sell",
+            quantity=quantity,
+            order_type="limit",
+            limit_price=price,
+            status=OrderStatus.FILLED,  # Simulate immediate fill in DRYRUN
+            submitted_at=get_utc_now(),
+            filled_at=get_utc_now(),
+            filled_avg_price=price,
+            filled_qty=quantity
+        )
+
+        # Save to database
+        self.storage.save_order(order)
+
+        return order
+
+    async def _place_sell_order(
+        self,
+        position: Position,
+        quantity: int,
+        price: float,
+        reason: str
+    ) -> OrderRecord:
+        """Place actual sell order via Alpaca API."""
+        try:
+            # Create sell limit order request
+            order_request = LimitOrderRequest(
+                symbol=position.ticker,
+                qty=quantity,
+                side=OrderSide.SELL,
+                time_in_force=TimeInForce.DAY,
+                limit_price=price
+            )
+
+            # Submit order
+            alpaca_order = self.client.submit_order(order_request)
+
+            logger.info(f"Sell order placed: {alpaca_order.id} for {position.ticker} ({reason})")
+
+            # Create order record
+            order = OrderRecord(
+                order_id=alpaca_order.id,
+                ticker=position.ticker,
+                event_id=position.event_id,
+                signal_id=f"exit_{reason}",
+                side="sell",
+                quantity=quantity,
+                order_type="limit",
+                limit_price=price,
+                status=OrderStatus.SUBMITTED,
+                submitted_at=get_utc_now()
+            )
+
+            # Save to database
+            self.storage.save_order(order)
+
+            return order
+
+        except Exception as e:
+            logger.error(f"Sell order placement failed: {e}")
+
+            order = OrderRecord(
+                order_id=f"FAILED_SELL_{position.order_id}",
+                ticker=position.ticker,
+                event_id=position.event_id,
+                signal_id=f"exit_{reason}",
+                side="sell",
+                quantity=quantity,
+                order_type="limit",
+                limit_price=price,
+                status=OrderStatus.FAILED,
+                submitted_at=get_utc_now(),
+                error_message=str(e)
+            )
+            self.storage.save_order(order)
+            return order
+
 
 async def main():
     """Test broker executor."""

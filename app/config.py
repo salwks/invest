@@ -102,6 +102,11 @@ class RulesConfig:
         return self._rules.get("risk", {})
 
     @property
+    def exit(self) -> dict:
+        """Exit rules."""
+        return self._rules.get("exit", {})
+
+    @property
     def execution(self) -> dict:
         """Execution rules."""
         return self._rules.get("execution", {})

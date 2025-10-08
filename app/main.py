@@ -15,6 +15,7 @@ from app.market_scanner import MarketScanner
 from app.rule_engine import RuleEngine
 from app.risk_guard import RiskGuard
 from app.broker_exec import BrokerExecutor
+from app.trade_manager import TradeManager
 from app.notifier import Notifier
 from app.storage import Storage
 from app.schemas import RunRecord
@@ -41,6 +42,7 @@ class AutoTrader:
         self.rule_engine = RuleEngine()
         self.risk_guard = RiskGuard(self.storage)
         self.broker = BrokerExecutor(self.storage)
+        self.trade_manager = TradeManager()
         self.notifier = Notifier()
 
     async def run_cycle(self) -> RunRecord:
@@ -119,6 +121,10 @@ class AutoTrader:
 
             run_record.signals_generated = signals_generated
             run_record.orders_placed = orders_placed
+
+            # Step 4: Monitor open positions for exits
+            logger.info("Step 4: Monitoring open positions for exit conditions...")
+            await self._monitor_positions()
 
             # Complete run
             run_record.completed_at = get_utc_now()
@@ -221,6 +227,117 @@ class AutoTrader:
         if processed_any:
             self.storage.mark_event_processed(event.event_id)
             logger.debug(f"Event {event.event_id[:8]} marked as processed")
+
+    async def _monitor_positions(self) -> None:
+        """
+        Monitor all open positions for exit conditions.
+        Called each cycle to check for profit taking, stops, and time-based exits.
+        """
+        positions = self.storage.get_open_positions()
+
+        if not positions:
+            logger.debug("No open positions to monitor")
+            return
+
+        logger.info(f"Monitoring {len(positions)} open positions")
+
+        for position in positions:
+            try:
+                # Get current market price
+                market_state = await self.market_scanner.get_market_state(position.ticker)
+
+                if not market_state:
+                    logger.warning(f"No market data for {position.ticker}, skipping exit check")
+                    continue
+
+                current_price = market_state.mid
+
+                # Update peak price if necessary
+                peak_price = position.current_price or position.entry_price
+                new_peak = max(peak_price, current_price)
+
+                if new_peak > peak_price:
+                    self.storage.update_position(
+                        order_id=position.order_id,
+                        current_price=new_peak
+                    )
+                    position.current_price = new_peak
+
+                # Evaluate exit conditions
+                exit_decision = self.trade_manager.manage_exit(
+                    position=position,
+                    market_price=current_price,
+                    now=get_utc_now()
+                )
+
+                # Execute exit if needed
+                if exit_decision["action"] == "PARTIAL_SELL":
+                    logger.info(f"PARTIAL EXIT: {position.ticker} - {exit_decision['reason']}")
+
+                    # Place sell order
+                    order = await self.broker.close_position(
+                        position=position,
+                        quantity=exit_decision["sell_qty"],
+                        price=exit_decision["sell_price"],
+                        reason=exit_decision["reason"]
+                    )
+
+                    # Update position: reduce quantity and mark partial_sold
+                    remaining_qty = position.quantity - exit_decision["sell_qty"]
+                    self.storage.update_position(
+                        order_id=position.order_id,
+                        quantity=remaining_qty,
+                        partial_sold=True
+                    )
+
+                    # Send notification
+                    await self.notifier.notify_exit(
+                        position=position,
+                        exit_price=exit_decision["sell_price"],
+                        quantity=exit_decision["sell_qty"],
+                        reason=exit_decision["reason"],
+                        partial=True
+                    )
+
+                elif exit_decision["action"] == "FULL_SELL":
+                    logger.info(f"FULL EXIT: {position.ticker} - {exit_decision['reason']}")
+
+                    # Place sell order
+                    order = await self.broker.close_position(
+                        position=position,
+                        quantity=exit_decision["sell_qty"],
+                        price=exit_decision["sell_price"],
+                        reason=exit_decision["reason"]
+                    )
+
+                    # Calculate realized P&L
+                    realized_pnl = (exit_decision["sell_price"] - position.entry_price) * exit_decision["sell_qty"]
+
+                    # Close position in database
+                    self.storage.close_position(
+                        order_id=position.order_id,
+                        exit_price=exit_decision["sell_price"],
+                        exit_time=get_utc_now(),
+                        realized_pnl=realized_pnl
+                    )
+
+                    # Send notification
+                    await self.notifier.notify_exit(
+                        position=position,
+                        exit_price=exit_decision["sell_price"],
+                        quantity=exit_decision["sell_qty"],
+                        reason=exit_decision["reason"],
+                        partial=False
+                    )
+
+                else:
+                    # HOLD - log current status
+                    pnl_pct = ((current_price - position.entry_price) / position.entry_price) * 100
+                    logger.debug(f"HOLD {position.ticker}: +{pnl_pct:.1f}% | {exit_decision['reason']}")
+
+            except Exception as e:
+                logger.error(f"Error monitoring position {position.ticker}: {e}")
+                continue
 
     def _get_since_time(self) -> datetime:
         """

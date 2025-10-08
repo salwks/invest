@@ -9,17 +9,27 @@ A sophisticated automated trading system that monitors RSS news feeds, uses Clau
 
 ## 🎯 Features
 
-- **Real-time News Monitoring**: Fetches news from Yahoo Finance, Nasdaq, and Seeking Alpha RSS feeds
-- **AI-Powered Analysis**: Uses Anthropic Claude to classify news sentiment, category, and reliability
+- **24/7 News Monitoring**: Fetches news continuously from RSS feeds, processes when market opens
+- **AI-Powered Analysis**: Uses Anthropic Claude Haiku 3.5 to classify news sentiment, category, and reliability
 - **Technical Analysis**: Calculates RSI, VWAP, volume ratios, and price momentum
 - **Rule-Based Trading**: Configurable entry/exit rules via YAML
-- **Risk Management**: Position sizing, stop-loss, daily loss limits, sector exposure controls
+- **Advanced Exit Logic**:
+  - Partial profit taking at +8%
+  - Trailing stop at -5% from peak
+  - Time-based exit after 60 minutes
+  - Hard stop loss at -4%
+- **Risk Management**:
+  - Position sizing based on volatility
+  - Daily loss limits and max concurrent positions
+  - Sector exposure controls
+  - Daily ticker limit (max 10 tickers/day)
+- **All Trading Sessions**: Pre-market, regular, and after-hours support
 - **Multiple Run Modes**:
   - `DRYRUN`: Simulation only (no real orders)
   - `SEMI_AUTO`: Requires manual approval before execution
   - `FULL_AUTO`: Fully automated trading
 - **Comprehensive Logging**: SQLite database + Parquet files for analysis
-- **Slack Notifications**: Real-time alerts for signals and orders
+- **Slack Notifications**: Real-time alerts for entries, exits, and P&L
 
 ## 📋 Requirements
 
@@ -115,20 +125,40 @@ docker-compose logs -f autotrader
 ## 🏗️ Architecture
 
 ```
-RSS Feeds → LLM Interpreter → Market Scanner → Rule Engine → Risk Guard → Broker → Notifications
-                ↓                    ↓               ↓            ↓          ↓
-            EventCard          MarketState      PreSignal   ApprovedSignal  Order
+RSS Feeds (24/7) → Storage (unprocessed) ┐
+                                         ↓
+                        ┌──── Event Processing Loop (every 5min) ────┐
+                        ↓                                             │
+            LLM Interpreter → Market Scanner → Rule Engine           │
+                    ↓                ↓               ↓                │
+               EventCard       MarketState      PreSignal            │
+                                                     ↓                │
+                            Risk Guard → Broker Executor             │
+                                 ↓            ↓                       │
+                          ApprovedSignal   Order                     │
+                                                                      │
+            Position Monitor ← Trade Manager ← Open Positions        │
+                    ↓                                                 │
+              Exit Orders → Broker → Notifications ──────────────────┘
 ```
 
 ### Pipeline Stages
 
-1. **RSS Fetcher**: Monitors news feeds, filters by ticker whitelist
-2. **LLM Interpreter**: Classifies news (category, sentiment, reliability)
-3. **Market Scanner**: Fetches real-time price/volume data from Alpaca
+**Entry Flow:**
+1. **RSS Fetcher**: Monitors news feeds 24/7, saves events to database
+2. **LLM Interpreter**: Classifies news (category, sentiment, reliability) using Claude Haiku 3.5
+3. **Market Scanner**: Fetches real-time price/volume data from Alpaca IEX feed
 4. **Rule Engine**: Evaluates ENTRY/SKIP based on `configs/rules.yaml`
-5. **Risk Guard**: Position sizing, portfolio limits, risk checks
-6. **Broker Executor**: Places limit orders via Alpaca API
-7. **Notifier**: Sends Slack alerts
+5. **Risk Guard**: Position sizing, portfolio limits, daily ticker limits
+6. **Broker Executor**: Places limit orders via Alpaca API (DRYRUN/SEMI_AUTO/FULL_AUTO)
+
+**Exit Flow:**
+1. **Position Monitor**: Checks all open positions each cycle
+2. **Trade Manager**: Evaluates 4 exit conditions (hard stop, partial profit, trailing, time)
+3. **Broker Executor**: Places sell orders when exit conditions met
+4. **Notifier**: Sends Slack alerts with P&L
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 
 ## ⚙️ Configuration
 
@@ -146,15 +176,33 @@ entry:
 
 skip:
   spike01_gt_pct: 5.0        # Skip if 1-min spike > 5%
-  disallow_session: [pre, after]  # Skip pre/after market
-  disallow_categories: [rumor]     # Skip rumors
+  disallow_session: []       # Allow all sessions (pre, regular, after)
+  disallow_categories: [rumor]  # Skip rumors
 
 risk:
-  per_trade_risk_pct: 0.004  # Risk 0.4% per trade
-  min_stop_bp: 150           # Min stop-loss distance
-  max_daily_loss_pct: 0.02   # Max 2% daily loss
+  per_trade_risk_pct: 0.004     # Risk 0.4% per trade
+  min_stop_bp: 150              # Min stop-loss distance
+  max_daily_loss_pct: 0.02      # Max 2% daily loss
   max_concurrent_positions: 3
+  max_daily_tickers: 10         # Max 10 unique tickers per day
+  max_position_size_pct: 0.15   # Max 15% of equity per position
+
+exit:
+  # Partial profit taking (1st level)
+  take_profit_lvl1_pct: 8.0     # Sell 40% at +8% gain
+  take_profit_lvl1_part: 0.4    # 40% of position
+
+  # Trailing stop (2nd level)
+  trailing_stop_pct: 5.0        # Sell all at -5% from peak
+
+  # Time-based exit
+  hold_minutes: 60              # Max hold time: 60 minutes
+
+  # Hard stop loss
+  hard_stop_pct: 4.0            # Sell all at -4% loss
 ```
+
+See [docs/EXIT_LOGIC.md](docs/EXIT_LOGIC.md) for detailed exit strategy documentation.
 
 ## 🧪 Testing
 
@@ -162,8 +210,9 @@ risk:
 # Run all tests
 pytest tests/ -v
 
-# Run specific test
+# Run specific test modules
 pytest tests/test_rules.py -v
+pytest tests/test_exit_rules.py -v
 
 # Integration test (DRYRUN)
 pytest tests/test_integration_dryrun.py -v
@@ -171,6 +220,12 @@ pytest tests/test_integration_dryrun.py -v
 # With coverage
 pytest tests/ --cov=app --cov-report=html
 ```
+
+**Test Coverage:**
+- ✅ Entry rules validation (16 tests)
+- ✅ Exit logic (partial profit, trailing stop, time, hard stop) (16 tests)
+- ✅ LLM contract validation
+- ✅ Integration tests (DRYRUN mode)
 
 ## 📊 Run Modes
 
@@ -211,28 +266,35 @@ RUN_MODE=FULL_AUTO python -m app.main --mode continuous
 ```
 autotrader/
 ├── app/
-│   ├── main.py              # Main orchestration
+│   ├── main.py              # Main orchestration & position monitoring
 │   ├── config.py            # Configuration management
 │   ├── schemas.py           # Pydantic data models
-│   ├── rss_fetcher.py       # RSS feed fetching
-│   ├── llm_interpreter.py   # Claude integration
-│   ├── market_scanner.py    # Market data & indicators
-│   ├── rule_engine.py       # Trading rules
-│   ├── risk_guard.py        # Risk management
-│   ├── broker_exec.py       # Order execution
+│   ├── rss_fetcher.py       # RSS feed fetching (24/7)
+│   ├── llm_interpreter.py   # Claude Haiku 3.5 integration
+│   ├── market_scanner.py    # Market data & indicators (IEX feed)
+│   ├── rule_engine.py       # Entry/skip trading rules
+│   ├── trade_manager.py     # Exit logic (NEW)
+│   ├── risk_guard.py        # Risk management & position sizing
+│   ├── broker_exec.py       # Order execution (entry & exit)
 │   ├── notifier.py          # Slack notifications
-│   ├── storage.py           # Database & logging
+│   ├── storage.py           # SQLite database & Parquet logging
 │   └── utils.py             # Utility functions
 ├── configs/
-│   └── rules.yaml           # Trading rules
+│   └── rules.yaml           # Entry/exit/risk rules
 ├── tests/
-│   ├── test_rules.py
+│   ├── test_rules.py        # Entry rules tests
+│   ├── test_exit_rules.py   # Exit logic tests (NEW)
 │   ├── test_llm_contract.py
 │   └── test_integration_dryrun.py
+├── docs/                    # Documentation
+│   ├── ARCHITECTURE.md
+│   ├── EXIT_LOGIC.md
+│   └── CONFIGURATION.md
 ├── docker/
 │   └── Dockerfile
 ├── data/                    # Auto-created
 │   ├── autotrader.db       # SQLite database
+│   ├── autotrader.log      # Log file
 │   ├── events/             # Parquet logs
 │   ├── market/
 │   └── signals/
@@ -274,12 +336,12 @@ autotrader/
 
 ### Current Limitations
 
-1. **Pre/After Market**: Disabled by default (configure in `rules.yaml`)
+1. **RSS Feeds**: Only Seeking Alpha active (Yahoo Finance and Nasdaq rate-limited)
 2. **Rumor Handling**: All rumors are skipped (low reliability)
 3. **LLM Failures**: NoTrade on interpretation errors
-4. **Session Restrictions**: Regular market hours only (9:30 AM - 4 PM ET)
-5. **Position Management**: No automatic exit logic (stop/limit orders only)
-6. **Data Delay**: RSS feeds have 3-5 minute latency
+4. **Data Delay**: RSS feeds have 3-5 minute latency
+5. **IEX Data Only**: Free tier uses IEX feed (delayed data for some tickers)
+6. **Long Only**: System only supports long positions (no short selling)
 
 ### Known Issues
 
