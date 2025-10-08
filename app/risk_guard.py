@@ -65,6 +65,18 @@ class RiskGuard:
                 ticker=market.ticker
             )
 
+        # Check daily ticker limit
+        if not self._check_daily_ticker_limit(market.ticker, notes):
+            return ApprovedSignal(
+                approved=False,
+                size_final_usd=0.0,
+                hard_stop_bp=0,
+                take_profit_bp=0,
+                max_slippage_bp=0,
+                notes=notes,
+                ticker=market.ticker
+            )
+
         # Check sector exposure
         if not self._check_sector_limit(market.ticker, portfolio, notes):
             return ApprovedSignal(
@@ -179,6 +191,27 @@ class RiskGuard:
         max_positions = risk_rules.get("max_concurrent_positions", 3)
         if portfolio.positions_count >= max_positions:
             notes.append(f"Max positions reached: {portfolio.positions_count}/{max_positions}")
+            return False
+
+        return True
+
+    def _check_daily_ticker_limit(self, ticker: str, notes: list[str]) -> bool:
+        """Check if daily ticker limit would be exceeded."""
+        risk_rules = self.rules.risk
+        max_daily_tickers = risk_rules.get("max_daily_tickers", 10)
+
+        # Get today's traded tickers
+        today_tickers = self.storage.get_today_traded_tickers()
+
+        # If this ticker was already traded today, allow it
+        if ticker in today_tickers:
+            return True
+
+        # Check if we're at the limit for new tickers
+        if len(today_tickers) >= max_daily_tickers:
+            notes.append(
+                f"Daily ticker limit reached: {len(today_tickers)}/{max_daily_tickers} tickers traded today"
+            )
             return False
 
         return True

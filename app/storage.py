@@ -350,6 +350,22 @@ class Storage:
                 return datetime.fromisoformat(row[0])
             return None
 
+    def get_today_traded_tickers(self) -> list[str]:
+        """Get list of unique tickers that have signals created today."""
+        from datetime import date
+
+        today_start = datetime.combine(date.today(), datetime.min.time())
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT ticker
+                FROM signals
+                WHERE created_at >= ?
+            """, (today_start.isoformat(),))
+
+            return [row[0] for row in cursor.fetchall()]
+
     def get_open_positions(self) -> list[Position]:
         """Get all open positions."""
         with sqlite3.connect(self.db_path) as conn:

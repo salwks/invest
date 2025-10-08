@@ -49,6 +49,7 @@ risk:
   max_daily_loss_pct: 0.02   # Max 2% daily loss
   max_sector_exposure_pct: 0.3  # Max 30% in single sector
   max_concurrent_positions: 3   # Max 3 open positions
+  max_daily_tickers: 10      # Max 10 unique tickers traded per day
 
   # Position sizing limits
   max_position_size_pct: 0.15   # Max 15% of equity per position
