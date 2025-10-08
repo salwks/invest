@@ -3,6 +3,7 @@ LLM-based news interpreter using Anthropic Claude.
 Analyzes news headlines and classifies them into structured EventCards.
 """
 
+import asyncio
 import json
 from typing import Optional
 from anthropic import Anthropic
@@ -97,8 +98,9 @@ class LLMInterpreter:
                 # Build user prompt
                 user_prompt = self._build_user_prompt(item)
 
-                # Call Claude
-                response = self.client.messages.create(
+                # Call Claude (run in thread to avoid blocking event loop)
+                response = await asyncio.to_thread(
+                    self.client.messages.create,
                     model=self.model,
                     max_tokens=500,
                     temperature=0.3,  # Lower temperature for more consistent output

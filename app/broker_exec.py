@@ -182,8 +182,11 @@ class BrokerExecutor:
                 limit_price=signal.entry_price_target
             )
 
-            # Submit order
-            alpaca_order = self.client.submit_order(order_request)
+            # Submit order (run in thread to avoid blocking event loop)
+            alpaca_order = await asyncio.to_thread(
+                self.client.submit_order,
+                order_request
+            )
 
             logger.info(f"Order placed: {alpaca_order.id} for {signal.ticker}")
 
@@ -220,7 +223,10 @@ class BrokerExecutor:
                 await asyncio.sleep(retry_delay)
 
                 try:
-                    alpaca_order = self.client.submit_order(order_request)
+                    alpaca_order = await asyncio.to_thread(
+                        self.client.submit_order,
+                        order_request
+                    )
                     logger.info(f"Retry successful: {alpaca_order.id}")
 
                     order = OrderRecord(
@@ -275,7 +281,11 @@ class BrokerExecutor:
             for _ in range(int(timeout / 2)):
                 await asyncio.sleep(2)
 
-                alpaca_order = self.client.get_order_by_id(order.order_id)
+                # Get order status (run in thread to avoid blocking event loop)
+                alpaca_order = await asyncio.to_thread(
+                    self.client.get_order_by_id,
+                    order.order_id
+                )
 
                 if alpaca_order.status == "filled":
                     logger.info(f"Order {order.order_id} filled @ ${alpaca_order.filled_avg_price}")
@@ -314,7 +324,10 @@ class BrokerExecutor:
                 # Timeout - cancel order
                 logger.warning(f"Order {order.order_id} timeout, cancelling...")
                 try:
-                    self.client.cancel_order_by_id(order.order_id)
+                    await asyncio.to_thread(
+                        self.client.cancel_order_by_id,
+                        order.order_id
+                    )
                     order.status = OrderStatus.CANCELLED
                     order.error_message = "Timeout"
                     self.storage.save_order(order)
@@ -407,8 +420,11 @@ class BrokerExecutor:
                 limit_price=price
             )
 
-            # Submit order
-            alpaca_order = self.client.submit_order(order_request)
+            # Submit order (run in thread to avoid blocking event loop)
+            alpaca_order = await asyncio.to_thread(
+                self.client.submit_order,
+                order_request
+            )
 
             logger.info(f"Sell order placed: {alpaca_order.id} for {position.ticker} ({reason})")
 

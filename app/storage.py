@@ -57,7 +57,8 @@ class Storage:
                     source TEXT,
                     url TEXT,
                     key_facts TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    processed INTEGER DEFAULT 0
                 )
             """)
 
@@ -143,12 +144,41 @@ class Storage:
             # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_published ON events (published_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_cluster ON events (cluster_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_processed ON events (processed, published_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_signals_event ON signals (event_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_signal ON orders (signal_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_positions_status ON positions (status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_runs_started ON runs (started_at)")
 
             conn.commit()
+
+            # Migration: Add processed column to existing events table
+            try:
+                cursor.execute("SELECT processed FROM events LIMIT 1")
+            except sqlite3.OperationalError:
+                # Column doesn't exist, add it
+                logger.info("Migrating events table: adding processed column")
+                cursor.execute("ALTER TABLE events ADD COLUMN processed INTEGER DEFAULT 0")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_processed ON events (processed, published_at)")
+                conn.commit()
+                logger.info("Migration completed: processed column added")
+
+            # Migration: Add current_price and partial_sold columns to positions table
+            try:
+                cursor.execute("SELECT current_price FROM positions LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("Migrating positions table: adding current_price column")
+                cursor.execute("ALTER TABLE positions ADD COLUMN current_price REAL")
+                conn.commit()
+                logger.info("Migration completed: current_price column added")
+
+            try:
+                cursor.execute("SELECT partial_sold FROM positions LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("Migrating positions table: adding partial_sold column")
+                cursor.execute("ALTER TABLE positions ADD COLUMN partial_sold INTEGER DEFAULT 0")
+                conn.commit()
+                logger.info("Migration completed: partial_sold column added")
 
         logger.info(f"Database initialized: {self.db_path}")
 

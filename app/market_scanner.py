@@ -3,6 +3,7 @@ Market scanner for real-time price and volume data.
 Uses Alpaca Market Data API to calculate technical indicators.
 """
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 import numpy as np
@@ -107,7 +108,11 @@ class MarketScanner:
                 symbol_or_symbols=ticker,
                 feed='iex'  # Use IEX feed (free tier compatible)
             )
-            quotes = self.client.get_stock_latest_quote(request)
+            # Run in thread to avoid blocking event loop
+            quotes = await asyncio.to_thread(
+                self.client.get_stock_latest_quote,
+                request
+            )
 
             if ticker not in quotes:
                 return None
@@ -138,7 +143,11 @@ class MarketScanner:
                 feed='iex'  # Use IEX feed (free tier compatible)
             )
 
-            bars_response = self.client.get_stock_bars(request)
+            # Run in thread to avoid blocking event loop
+            bars_response = await asyncio.to_thread(
+                self.client.get_stock_bars,
+                request
+            )
 
             if ticker not in bars_response:
                 return []

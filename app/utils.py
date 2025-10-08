@@ -5,7 +5,7 @@ Utility functions for the automated trading system.
 import hashlib
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 import pytz
 
 
@@ -129,18 +129,30 @@ def get_market_session(dt: datetime) -> str:
     return "after"
 
 
-def setup_logger(name: str, log_file: str = None, level: str = "INFO") -> logging.Logger:
+def setup_logger(name: str, log_file: Optional[str] = None, level: Optional[str] = None) -> logging.Logger:
     """
     Set up logger with console and file handlers.
+    Reads configuration from Settings by default.
 
     Args:
         name: Logger name
-        log_file: Optional log file path
-        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file: Optional log file path (defaults to Settings.log_file)
+        level: Log level (defaults to Settings.log_level)
 
     Returns:
         Configured logger
     """
+    # Import here to avoid circular imports
+    from app.config import get_settings
+
+    settings = get_settings()
+
+    # Use settings values as defaults
+    if log_file is None:
+        log_file = settings.log_file
+    if level is None:
+        level = settings.log_level
+
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper()))
 

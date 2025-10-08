@@ -3,8 +3,7 @@ python-dotenv==1.0.0
 pydantic>=2.10.0  # Python 3.13 support
 pydantic-settings>=2.1.0
 
-# Async runtime
-asyncio==3.4.3
+# Async HTTP
 aiohttp==3.9.1
 aiodns==3.1.1
 
@@ -22,21 +21,11 @@ pandas>=2.2.0
 pyarrow>=14.0.1
 numpy>=1.26.2
 
-# Market data calculations
-ta==0.11.0
-
 # Configuration
 PyYAML==6.0.1
 
-# Database
-aiosqlite==0.19.0
-
 # HTTP requests
 httpx==0.25.2
-requests==2.31.0
-
-# Scheduling
-APScheduler==3.10.4
 
 # Testing
 pytest==7.4.3
@@ -46,4 +35,3 @@ pytest-cov==4.1.0
 # Utilities
 python-dateutil==2.8.2
 pytz==2023.3
-hashlib-additional==1.0.0

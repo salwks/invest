@@ -112,8 +112,9 @@ class AutoTrader:
 
             for event in all_events:
                 try:
-                    await self._process_event(event)
+                    order_count = await self._process_event(event)
                     signals_generated += 1
+                    orders_placed += order_count
 
                 except Exception as e:
                     logger.error(f"Error processing event {event.event_id}: {e}")
@@ -159,16 +160,20 @@ class AutoTrader:
 
         return run_record
 
-    async def _process_event(self, event) -> None:
+    async def _process_event(self, event) -> int:
         """
         Process a single event through the entire pipeline.
 
         Args:
             event: EventCard to process
+
+        Returns:
+            Number of orders placed
         """
         logger.info(f"Processing event: {event.headline[:60]}...")
 
         processed_any = False  # Track if any ticker was successfully processed
+        orders_count = 0  # Track orders placed
 
         # For each ticker mentioned in the event
         for ticker in event.tickers:
@@ -207,6 +212,7 @@ class AutoTrader:
 
                     if order:
                         logger.info(f"Order placed: {order.order_id}")
+                        orders_count += 1  # Increment order counter
 
                 # Step 3f: Send notification
                 await self.notifier.notify_signal(
@@ -227,6 +233,8 @@ class AutoTrader:
         if processed_any:
             self.storage.mark_event_processed(event.event_id)
             logger.debug(f"Event {event.event_id[:8]} marked as processed")
+
+        return orders_count
 
     async def _monitor_positions(self) -> None:
         """
