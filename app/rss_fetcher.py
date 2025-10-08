@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import feedparser
 from bs4 import BeautifulSoup
+import aiohttp
 
 from app.schemas import RSSFeedItem
 from app.config import RSS_FEEDS, get_settings
@@ -17,6 +18,9 @@ from app.utils import (
 )
 
 logger = setup_logger(__name__)
+
+# User-Agent to avoid blocking
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 
 class RSSFetcher:
@@ -93,9 +97,21 @@ class RSSFetcher:
             List of filtered RSS items
         """
         try:
-            # Run feedparser in thread pool (it's blocking)
+            # Fetch RSS content with aiohttp (with timeout and User-Agent)
+            timeout = aiohttp.ClientTimeout(total=10)
+            headers = {'User-Agent': USER_AGENT}
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"Feed {source} returned status {response.status}")
+                        return []
+
+                    content = await response.text()
+
+            # Parse RSS content with feedparser (no network I/O)
             loop = asyncio.get_event_loop()
-            feed = await loop.run_in_executor(None, feedparser.parse, url)
+            feed = await loop.run_in_executor(None, feedparser.parse, content)
 
             if feed.bozo:
                 logger.warning(f"Feed parse warning for {source}: {feed.get('bozo_exception', 'Unknown')}")
@@ -132,6 +148,12 @@ class RSSFetcher:
             logger.debug(f"Fetched {len(items)} items from {source}")
             return items
 
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout fetching feed {source} (10s limit)")
+            return []
+        except aiohttp.ClientError as e:
+            logger.warning(f"Network error fetching feed {source}: {e}")
+            return []
         except Exception as e:
             logger.error(f"Error fetching feed {source}: {e}")
             return []

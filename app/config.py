@@ -139,16 +139,18 @@ def get_rules() -> RulesConfig:
 
 # RSS Feed sources
 RSS_FEEDS = [
-    {
-        "name": "Yahoo Finance",
-        "url": "https://finance.yahoo.com/news/rssindex",
-        "delay_minutes": 3,
-    },
-    {
-        "name": "Nasdaq News",
-        "url": "https://www.nasdaq.com/feed/rssoutbound",
-        "delay_minutes": 3,
-    },
+    # Yahoo Finance - rate limited, disabled
+    # {
+    #     "name": "Yahoo Finance",
+    #     "url": "https://finance.yahoo.com/news/rssindex",
+    #     "delay_minutes": 3,
+    # },
+    # Nasdaq - no response, disabled
+    # {
+    #     "name": "Nasdaq News",
+    #     "url": "https://www.nasdaq.com/feed/rssoutbound",
+    #     "delay_minutes": 3,
+    # },
     {
         "name": "Seeking Alpha Market News",
         "url": "https://seekingalpha.com/feed.xml",

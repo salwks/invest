@@ -103,7 +103,10 @@ class MarketScanner:
     async def _get_latest_quote(self, ticker: str) -> Optional[dict]:
         """Get latest bid/ask quote."""
         try:
-            request = StockLatestQuoteRequest(symbol_or_symbols=ticker)
+            request = StockLatestQuoteRequest(
+                symbol_or_symbols=ticker,
+                feed='iex'  # Use IEX feed (free tier compatible)
+            )
             quotes = self.client.get_stock_latest_quote(request)
 
             if ticker not in quotes:
@@ -131,7 +134,8 @@ class MarketScanner:
                 symbol_or_symbols=ticker,
                 timeframe=TimeFrame.Minute,
                 start=start,
-                end=end
+                end=end,
+                feed='iex'  # Use IEX feed (free tier compatible)
             )
 
             bars_response = self.client.get_stock_bars(request)
