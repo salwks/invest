@@ -313,7 +313,8 @@ class BrokerExecutor:
                     logger.info(f"Position opened: {position.quantity} shares @ ${position.entry_price:.2f}")
                     break
 
-                elif alpaca_order.status in ["cancelled", "rejected", "expired"]:
+                elif alpaca_order.status in ["canceled", "cancelled", "rejected", "expired"]:
+                    # Note: Alpaca uses US spelling "canceled" (not "cancelled")
                     logger.warning(f"Order {order.order_id} status: {alpaca_order.status}")
                     order.status = OrderStatus.CANCELLED
                     order.error_message = f"Order {alpaca_order.status}"

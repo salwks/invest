@@ -110,7 +110,7 @@ class Notifier:
             f"• Entry Price: ${position.entry_price:.2f}",
             f"• Exit Price: ${exit_price:.2f}",
             f"• Quantity: {quantity} shares",
-            f"• P&L: {format_money(total_pnl)} ({format_percentage(pnl_pct / 100)})",
+            f"• P&L: {format_money(total_pnl)} ({format_percentage(pnl_pct)})",
             ""
         ]
 
